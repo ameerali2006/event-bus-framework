@@ -4,6 +4,7 @@ mod database;
 mod services;
 mod subscribers;
 mod models;
+mod repositories;
 
 use database::schema::initialize_database;
 use services::event_bus_service::EventBusService;
