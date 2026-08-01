@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::audit::audit_subscriber::AuditSubscriber;
 use crate::bus::event::Event;
 use crate::bus::event_bus::EventBus;
+use crate::bus::publisher::Publisher;
 
 use crate::subscribers::log_subscriber::LogSubscriber;
 use crate::subscribers::message_subscriber::MessageSubscriber;
@@ -17,7 +18,7 @@ pub struct EventBusService {
 
 impl EventBusService {
     pub fn new() -> Self {
-        let mut event_bus = EventBus::new();
+        let event_bus = EventBus::new();
 
         event_bus.subscribe(Arc::new(LogSubscriber));
         event_bus.subscribe(Arc::new(MessageSubscriber));
@@ -35,6 +36,8 @@ impl EventBusService {
 
         let event = Event::new("TicketCreated", payload);
 
-        self.event_bus.publish(&event);
+        // Instantiate the Publisher abstraction to dispatch the event
+        let publisher = Publisher::new(&self.event_bus);
+        publisher.publish(event);
     }
 }

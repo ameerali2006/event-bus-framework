@@ -8,8 +8,13 @@ use crate::database::connection::get_connection;
 pub struct AuditService;
 
 impl AuditService {
+    /// Saves an event to the SQLite database with payload serialized to JSON.
     pub fn save(event: &Event) -> Result<()> {
         let conn = get_connection()?;
+
+        // Serialize payload map to structured JSON string
+        let payload_json = serde_json::to_string(&event.payload)
+            .map_err(|err| rusqlite::Error::ToSqlConversionFailure(Box::new(err)))?;
 
         conn.execute(
             "
@@ -18,7 +23,7 @@ impl AuditService {
             ",
             params![
                 event.name,
-                format!("{:?}", event.payload),
+                payload_json,
                 event.timestamp
             ],
         )?;
@@ -27,6 +32,8 @@ impl AuditService {
 
         Ok(())
     }
+
+    /// Retrieves all audit logs from the database, sorted by timestamp descending.
     pub fn get_all_logs() -> Result<Vec<AuditLog>> {
         let conn = get_connection()?;
 
