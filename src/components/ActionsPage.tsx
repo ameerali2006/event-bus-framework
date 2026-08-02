@@ -1,21 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { eventApi, EventDefinition } from "../services/eventApi";
-import { EventsTable } from "./EventsTable";
-import { EventForm } from "./EventForm";
-import { DeleteConfirmModal } from "./DeleteConfirmModal";
+import { actionApi, ActionDefinition } from "../services/actionApi";
+import { ActionsTable } from "./ActionsTable";
+import { ActionForm } from "./ActionForm";
+import { DeleteActionModal } from "./DeleteActionModal";
 
-export const EventsPage: React.FC = () => {
-  const [events, setEvents] = useState<EventDefinition[]>([]);
+export const ActionsPage: React.FC = () => {
+  const [actions, setActions] = useState<ActionDefinition[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   // Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [eventToEdit, setEventToEdit] = useState<EventDefinition | null>(null);
+  const [actionToEdit, setActionToEdit] = useState<ActionDefinition | null>(null);
 
   // Delete Confirm State
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<EventDefinition | null>(null);
+  const [actionToDelete, setActionToDelete] = useState<ActionDefinition | null>(null);
 
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -31,64 +31,64 @@ export const EventsPage: React.FC = () => {
     }
   }, [toast]);
 
-  const fetchEvents = async () => {
+  const fetchActions = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await eventApi.getEvents();
-      // Sort events by sort_order ascending
+      const data = await actionApi.getActions();
+      // Sort actions by sort_order ascending
       const sorted = [...data].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-      setEvents(sorted);
+      setActions(sorted);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || String(err) || "Failed to load event definitions from SQLite.");
+      setError(err?.message || String(err) || "Failed to load action definitions from SQLite.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchEvents();
+    fetchActions();
   }, []);
 
-  const handleFormSubmit = async (formData: Omit<EventDefinition, "id"> & { id?: number }) => {
+  const handleFormSubmit = async (formData: Omit<ActionDefinition, "id"> & { id?: number }) => {
     if (formData.id !== undefined) {
       // Edit Mode
-      await eventApi.updateEvent(formData as EventDefinition);
-      showToast(`Event '${formData.event_name}' updated successfully.`);
+      await actionApi.updateAction(formData as ActionDefinition);
+      showToast(`Action '${formData.action_type}' updated successfully.`);
     } else {
       // Create Mode
-      await eventApi.createEvent(formData);
-      showToast(`Event '${formData.event_name}' registered successfully.`);
+      await actionApi.createAction(formData);
+      showToast(`Action '${formData.action_type}' registered successfully.`);
     }
-    fetchEvents();
+    fetchActions();
   };
 
   const handleDeleteConfirm = async () => {
-    if (!eventToDelete) return;
+    if (!actionToDelete) return;
     try {
-      await eventApi.deleteEvent(eventToDelete.id);
-      showToast(`Event '${eventToDelete.event_name}' deleted successfully.`);
+      await actionApi.deleteAction(actionToDelete.id);
+      showToast(`Action '${actionToDelete.action_type}' deleted successfully.`);
       setIsDeleteOpen(false);
-      setEventToDelete(null);
-      fetchEvents();
+      setActionToDelete(null);
+      fetchActions();
     } catch (err: any) {
-      showToast(err?.message || String(err) || "Failed to delete event.", "error");
+      showToast(err?.message || String(err) || "Failed to delete action.", "error");
     }
   };
 
-  const handleEditClick = (event: EventDefinition) => {
-    setEventToEdit(event);
+  const handleEditClick = (action: ActionDefinition) => {
+    setActionToEdit(action);
     setIsFormOpen(true);
   };
 
-  const handleDeleteClick = (event: EventDefinition) => {
-    setEventToDelete(event);
+  const handleDeleteClick = (action: ActionDefinition) => {
+    setActionToDelete(action);
     setIsDeleteOpen(true);
   };
 
-  const handleNewEventClick = () => {
-    setEventToEdit(null);
+  const handleNewActionClick = () => {
+    setActionToEdit(null);
     setIsFormOpen(true);
   };
 
@@ -115,16 +115,16 @@ export const EventsPage: React.FC = () => {
       {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1.5">Events Catalog</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1.5">Actions Catalog</h1>
           <p className="text-slate-400 text-sm">
-            Configure dynamic database-driven triggers, parameters, and action handlers.
+            Manage system-wide action handlers, loggers, messages, and email dispatchers.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             className="inline-flex items-center gap-2 font-semibold text-sm px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-all cursor-pointer"
-            onClick={fetchEvents}
-            title="Refresh Events Catalog"
+            onClick={fetchActions}
+            title="Refresh Actions Catalog"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -145,11 +145,11 @@ export const EventsPage: React.FC = () => {
           </button>
           <button
             className="inline-flex items-center gap-2 font-semibold text-sm px-5 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer border-none"
-            onClick={handleNewEventClick}
-            title="Register new event handler definition"
+            onClick={handleNewActionClick}
+            title="Register new action handler definition"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            <span>New Event</span>
+            <span>New Action</span>
           </button>
         </div>
       </div>
@@ -164,27 +164,27 @@ export const EventsPage: React.FC = () => {
       )}
 
       {/* Table view */}
-      <EventsTable
-        events={events}
+      <ActionsTable
+        actions={actions}
         loading={loading}
         onEdit={handleEditClick}
         onDelete={handleDeleteClick}
       />
 
-      {/* CRUD Event Form Modal */}
-      <EventForm
+      {/* CRUD Action Form Modal */}
+      <ActionForm
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
         onSubmit={handleFormSubmit}
-        eventToEdit={eventToEdit}
+        actionToEdit={actionToEdit}
       />
 
       {/* Safety Confirmation Dialog */}
-      <DeleteConfirmModal
+      <DeleteActionModal
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleDeleteConfirm}
-        eventToDelete={eventToDelete}
+        actionToDelete={actionToDelete}
       />
     </div>
   );

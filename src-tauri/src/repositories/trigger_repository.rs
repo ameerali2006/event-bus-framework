@@ -60,4 +60,32 @@ impl TriggerRepository {
         )?;
         Ok(())
     }
+
+    /// Updates the expression and name of an existing trigger entry.
+    pub fn update_trigger(id: i32, name: &str, expression: &str) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            UPDATE triggers
+            SET name = ?1,
+                expression = ?2
+            WHERE id = ?3
+            ",
+            params![name, expression, id],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes a trigger record from the database by its unique identifier.
+    pub fn delete_trigger(id: i32) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            DELETE FROM triggers
+            WHERE id = ?1
+            ",
+            params![id],
+        )?;
+        Ok(())
+    }
 }

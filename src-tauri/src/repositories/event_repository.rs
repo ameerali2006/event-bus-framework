@@ -63,4 +63,79 @@ impl EventRepository {
         }
         Ok(events)
     }
+
+    /// Inserts a new event definition record.
+    pub fn insert_event(
+        event_name: &str,
+        event_constraints: Option<&str>,
+        custom_constraint: Option<&str>,
+        rule_constraints: Option<&str>,
+        sort_order: Option<i32>,
+        name: Option<&str>,
+    ) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            INSERT INTO events (event_name, event_constraints, custom_constraint, rule_constraints, sort_order, name)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            ",
+            rusqlite::params![
+                event_name,
+                event_constraints,
+                custom_constraint,
+                rule_constraints,
+                sort_order,
+                name
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Updates an existing event definition record.
+    pub fn update_event(
+        id: i32,
+        event_name: &str,
+        event_constraints: Option<&str>,
+        custom_constraint: Option<&str>,
+        rule_constraints: Option<&str>,
+        sort_order: Option<i32>,
+        name: Option<&str>,
+    ) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            UPDATE events
+            SET event_name = ?1,
+                event_constraints = ?2,
+                custom_constraint = ?3,
+                rule_constraints = ?4,
+                sort_order = ?5,
+                name = ?6
+            WHERE id = ?7
+            ",
+            rusqlite::params![
+                event_name,
+                event_constraints,
+                custom_constraint,
+                rule_constraints,
+                sort_order,
+                name,
+                id
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes an event definition record by its unique ID.
+    pub fn delete_event(id: i32) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            DELETE FROM events
+            WHERE id = ?1
+            ",
+            rusqlite::params![id],
+        )?;
+        Ok(())
+    }
 }

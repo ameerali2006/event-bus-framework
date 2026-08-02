@@ -37,4 +37,87 @@ impl EventActionContainerRepository {
         }
         Ok(containers)
     }
+
+    /// Retrieves all mapped event-action links for a given event, ordered by execution precedence.
+    pub fn get_mappings_for_event(event_id: i32) -> Result<Vec<EventActionContainer>> {
+        Self::get_actions_for_event(event_id)
+    }
+
+    /// Inserts a new event action mapping container record.
+    pub fn insert_mapping(
+        event_id: i32,
+        action_id: i32,
+        parameter_values: Option<&str>,
+        custom_constraint: Option<&str>,
+        sort_order: Option<i32>,
+    ) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            INSERT INTO event_action_containers (event_id, action_id, parameter_values, custom_constraint, sort_order)
+            VALUES (?1, ?2, ?3, ?4, ?5)
+            ",
+            rusqlite::params![
+                event_id,
+                action_id,
+                parameter_values,
+                custom_constraint,
+                sort_order
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Updates an existing event action mapping container record.
+    pub fn update_mapping(
+        id: i32,
+        event_id: i32,
+        action_id: i32,
+        parameter_values: Option<&str>,
+        custom_constraint: Option<&str>,
+        sort_order: Option<i32>,
+    ) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            UPDATE event_action_containers
+            SET event_id = ?1,
+                action_id = ?2,
+                parameter_values = ?3,
+                custom_constraint = ?4,
+                sort_order = ?5
+            WHERE id = ?6
+            ",
+            rusqlite::params![
+                event_id,
+                action_id,
+                parameter_values,
+                custom_constraint,
+                sort_order,
+                id
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes an event action mapping container record.
+    pub fn delete_mapping(id: i32) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            DELETE FROM event_action_containers
+            WHERE id = ?1
+            ",
+            rusqlite::params![id],
+        )?;
+        Ok(())
+    }
+
+    /// Returns the total count of event action mapping records in the database.
+    pub fn get_total_mapping_count() -> Result<i32> {
+        let conn = get_connection()?;
+        let mut stmt = conn.prepare("SELECT COUNT(*) FROM event_action_containers")?;
+        let count: i32 = stmt.query_row([], |row| row.get(0))?;
+        Ok(count)
+    }
 }

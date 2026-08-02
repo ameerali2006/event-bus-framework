@@ -59,4 +59,69 @@ impl ActionRepository {
         }
         Ok(actions)
     }
+
+    /// Inserts a new action definition record.
+    pub fn insert_action(
+        action_type: &str,
+        parameters: Option<&str>,
+        sort_order: Option<i32>,
+        name: Option<&str>,
+    ) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            INSERT INTO actions (action_type, parameters, sort_order, name)
+            VALUES (?1, ?2, ?3, ?4)
+            ",
+            rusqlite::params![
+                action_type,
+                parameters,
+                sort_order,
+                name
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Updates an existing action definition record.
+    pub fn update_action(
+        id: i32,
+        action_type: &str,
+        parameters: Option<&str>,
+        sort_order: Option<i32>,
+        name: Option<&str>,
+    ) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            UPDATE actions
+            SET action_type = ?1,
+                parameters = ?2,
+                sort_order = ?3,
+                name = ?4
+            WHERE id = ?5
+            ",
+            rusqlite::params![
+                action_type,
+                parameters,
+                sort_order,
+                name,
+                id
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes an action definition record by its unique ID.
+    pub fn delete_action(id: i32) -> Result<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "
+            DELETE FROM actions
+            WHERE id = ?1
+            ",
+            rusqlite::params![id],
+        )?;
+        Ok(())
+    }
 }

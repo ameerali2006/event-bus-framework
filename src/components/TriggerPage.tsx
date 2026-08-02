@@ -1,21 +1,21 @@
 import React, { useEffect, useState } from "react";
-import { eventApi, EventDefinition } from "../services/eventApi";
-import { EventsTable } from "./EventsTable";
-import { EventForm } from "./EventForm";
-import { DeleteConfirmModal } from "./DeleteConfirmModal";
+import { triggerApi, Trigger } from "../services/triggerApi";
+import { TriggerTable } from "./TriggerTable";
+import { TriggerForm } from "./TriggerForm";
+import { DeleteTriggerModal } from "./DeleteTriggerModal";
 
-export const EventsPage: React.FC = () => {
-  const [events, setEvents] = useState<EventDefinition[]>([]);
+export const TriggerPage: React.FC = () => {
+  const [triggers, setTriggers] = useState<Trigger[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   // Form State
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [eventToEdit, setEventToEdit] = useState<EventDefinition | null>(null);
+  const [triggerToEdit, setTriggerToEdit] = useState<Trigger | null>(null);
 
   // Delete Confirm State
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<EventDefinition | null>(null);
+  const [triggerToDelete, setTriggerToDelete] = useState<Trigger | null>(null);
 
   // Toast Notification State
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -31,64 +31,67 @@ export const EventsPage: React.FC = () => {
     }
   }, [toast]);
 
-  const fetchEvents = async () => {
+  const fetchTriggers = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await eventApi.getEvents();
-      // Sort events by sort_order ascending
-      const sorted = [...data].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-      setEvents(sorted);
+      const data = await triggerApi.getTriggers();
+      // Sort triggers by name
+      const sorted = [...data].sort((a, b) => a.name.localeCompare(b.name));
+      setTriggers(sorted);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || String(err) || "Failed to load event definitions from SQLite.");
+      setError(err?.message || String(err) || "Failed to load triggers from SQLite database.");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchEvents();
+    fetchTriggers();
+    // Auto-refresh trigger last_trigger status periodically (every 5 seconds) to display real-time scheduler runs
+    const interval = setInterval(fetchTriggers, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const handleFormSubmit = async (formData: Omit<EventDefinition, "id"> & { id?: number }) => {
+  const handleFormSubmit = async (formData: Omit<Trigger, "id" | "last_trigger"> & { id?: number }) => {
     if (formData.id !== undefined) {
       // Edit Mode
-      await eventApi.updateEvent(formData as EventDefinition);
-      showToast(`Event '${formData.event_name}' updated successfully.`);
+      await triggerApi.updateTrigger(formData as Omit<Trigger, "last_trigger">);
+      showToast(`Trigger '${formData.name}' updated successfully. Please restart/reload to apply scheduling modifications.`);
     } else {
       // Create Mode
-      await eventApi.createEvent(formData);
-      showToast(`Event '${formData.event_name}' registered successfully.`);
+      await triggerApi.createTrigger(formData);
+      showToast(`Trigger '${formData.name}' registered successfully. Cron scheduler will pick it up on startup.`);
     }
-    fetchEvents();
+    fetchTriggers();
   };
 
   const handleDeleteConfirm = async () => {
-    if (!eventToDelete) return;
+    if (!triggerToDelete) return;
     try {
-      await eventApi.deleteEvent(eventToDelete.id);
-      showToast(`Event '${eventToDelete.event_name}' deleted successfully.`);
+      await triggerApi.deleteTrigger(triggerToDelete.id);
+      showToast(`Trigger '${triggerToDelete.name}' deleted successfully.`);
       setIsDeleteOpen(false);
-      setEventToDelete(null);
-      fetchEvents();
+      setTriggerToDelete(null);
+      fetchTriggers();
     } catch (err: any) {
-      showToast(err?.message || String(err) || "Failed to delete event.", "error");
+      showToast(err?.message || String(err) || "Failed to delete trigger.", "error");
     }
   };
 
-  const handleEditClick = (event: EventDefinition) => {
-    setEventToEdit(event);
+  const handleEditClick = (trigger: Trigger) => {
+    setTriggerToEdit(trigger);
     setIsFormOpen(true);
   };
 
-  const handleDeleteClick = (event: EventDefinition) => {
-    setEventToDelete(event);
+  const handleDeleteClick = (trigger: Trigger) => {
+    setTriggerToDelete(trigger);
     setIsDeleteOpen(true);
   };
 
-  const handleNewEventClick = () => {
-    setEventToEdit(null);
+  const handleNewTriggerClick = () => {
+    setTriggerToEdit(null);
     setIsFormOpen(true);
   };
 
@@ -115,16 +118,16 @@ export const EventsPage: React.FC = () => {
       {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1.5">Events Catalog</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1.5">Triggers Scheduler</h1>
           <p className="text-slate-400 text-sm">
-            Configure dynamic database-driven triggers, parameters, and action handlers.
+            Configure system execution triggers, monitor real-time execution times, and set cron schedules.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <button
             className="inline-flex items-center gap-2 font-semibold text-sm px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-all cursor-pointer"
-            onClick={fetchEvents}
-            title="Refresh Events Catalog"
+            onClick={fetchTriggers}
+            title="Refresh Triggers Lists"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -145,11 +148,11 @@ export const EventsPage: React.FC = () => {
           </button>
           <button
             className="inline-flex items-center gap-2 font-semibold text-sm px-5 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer border-none"
-            onClick={handleNewEventClick}
-            title="Register new event handler definition"
+            onClick={handleNewTriggerClick}
+            title="Add a new cron trigger"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            <span>New Event</span>
+            <span>New Trigger</span>
           </button>
         </div>
       </div>
@@ -164,27 +167,27 @@ export const EventsPage: React.FC = () => {
       )}
 
       {/* Table view */}
-      <EventsTable
-        events={events}
+      <TriggerTable
+        triggers={triggers}
         loading={loading}
         onEdit={handleEditClick}
         onDelete={handleDeleteClick}
       />
 
-      {/* CRUD Event Form Modal */}
-      <EventForm
+      {/* CRUD Trigger Form Modal */}
+      <TriggerForm
         isOpen={isFormOpen}
         onClose={() => setIsFormOpen(false)}
         onSubmit={handleFormSubmit}
-        eventToEdit={eventToEdit}
+        triggerToEdit={triggerToEdit}
       />
 
       {/* Safety Confirmation Dialog */}
-      <DeleteConfirmModal
+      <DeleteTriggerModal
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleDeleteConfirm}
-        eventToDelete={eventToDelete}
+        triggerToDelete={triggerToDelete}
       />
     </div>
   );

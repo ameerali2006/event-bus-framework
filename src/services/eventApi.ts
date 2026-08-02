@@ -15,4 +15,34 @@ export const eventApi = {
   getEvents: async (): Promise<EventDefinition[]> => {
     return invoke<EventDefinition[]>("get_events");
   },
+
+  /// Creates a new event definition in the SQLite backend.
+  createEvent: async (event: Omit<EventDefinition, "id">): Promise<void> => {
+    return invoke<void>("create_event", {
+      eventName: event.event_name,
+      eventConstraints: event.event_constraints,
+      customConstraint: event.custom_constraint,
+      ruleConstraints: event.rule_constraints,
+      sortOrder: event.sort_order,
+      name: event.name,
+    });
+  },
+
+  /// Updates an existing event definition in the SQLite backend.
+  updateEvent: async (event: EventDefinition): Promise<void> => {
+    return invoke<void>("update_event", {
+      id: event.id,
+      eventName: event.event_name,
+      eventConstraints: event.event_constraints,
+      customConstraint: event.custom_constraint,
+      ruleConstraints: event.rule_constraints,
+      sortOrder: event.sort_order,
+      name: event.name,
+    });
+  },
+
+  /// Deletes an event definition from the SQLite backend.
+  deleteEvent: async (id: number): Promise<void> => {
+    return invoke<void>("delete_event", { id });
+  },
 };

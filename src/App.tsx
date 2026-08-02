@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { EventsPage } from "./components/EventsPage";
+import { ActionsPage } from "./components/ActionsPage";
+import { EventActionMappingPage } from "./components/EventActionMappingPage";
+import { TriggerPage } from "./components/TriggerPage";
+import { AuditLogsPage } from "./components/AuditLogsPage";
+import { EventTestingPage } from "./components/EventTestingPage";
 import { eventApi } from "./services/eventApi";
+import { actionApi } from "./services/actionApi";
+import { triggerApi } from "./services/triggerApi";
 
 interface AuditLog {
   id: number;
@@ -11,30 +18,47 @@ interface AuditLog {
 }
 
 function App() {
-  const [view, setView] = useState<"dashboard" | "events">("dashboard");
+  const [view, setView] = useState<
+    "dashboard" | "events" | "actions" | "mappings" | "triggers" | "audit" | "testing"
+  >("dashboard");
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [eventCount, setEventCount] = useState<number>(0);
-  const [loadingLogs, setLoadingLogs] = useState<boolean>(true);
+  const [actionCount, setActionCount] = useState<number>(0);
+  const [mappingCount, setMappingCount] = useState<number>(0);
+  const [triggerCount, setTriggerCount] = useState<number>(0);
+  const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
   const [publishing, setPublishing] = useState<boolean>(false);
 
   async function loadLogs() {
     try {
-      setLoadingLogs(true);
       const data = await invoke<AuditLog[]>("get_audit_logs");
-      setLogs(data);
+      // Load recent first
+      setLogs([...data].reverse());
     } catch (e) {
       console.error("Failed to load audit logs:", e);
-    } finally {
-      setLoadingLogs(false);
     }
   }
 
   async function loadMetrics() {
     try {
+      setLoadingMetrics(true);
       const events = await eventApi.getEvents();
       setEventCount(events.length);
+
+      const actions = await actionApi.getActions();
+      setActionCount(actions.length);
+
+      const triggers = await triggerApi.getTriggers();
+      setTriggerCount(triggers.length);
+
+      const mappings = await invoke<number>("get_total_mapping_count");
+      setMappingCount(mappings);
+
+      await loadLogs();
     } catch (e) {
       console.error("Failed to load metrics:", e);
+    } finally {
+      setLoadingMetrics(false);
     }
   }
 
@@ -42,7 +66,6 @@ function App() {
     try {
       setPublishing(true);
       await invoke("publish_event");
-      await loadLogs();
       await loadMetrics();
     } catch (e) {
       console.error("Failed to publish event:", e);
@@ -52,8 +75,10 @@ function App() {
   }
 
   useEffect(() => {
-    loadLogs();
     loadMetrics();
+    // Auto-refresh stats in background (every 5 seconds) to sync log activities and status
+    const timer = setInterval(loadMetrics, 5000);
+    return () => clearInterval(timer);
   }, []);
 
   return (
@@ -77,7 +102,6 @@ function App() {
               }`}
               onClick={() => {
                 setView("dashboard");
-                loadLogs();
                 loadMetrics();
               }}
             >
@@ -94,6 +118,61 @@ function App() {
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 6v6l4 2"></path></svg>
               <span>Events Catalog</span>
+            </button>
+            <button
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 w-100 text-left cursor-pointer border-none bg-transparent ${
+                view === "actions"
+                  ? "bg-indigo-500/15 text-indigo-400 border-l-4 border-indigo-500 rounded-l-none"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+              onClick={() => setView("actions")}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+              <span>Actions Catalog</span>
+            </button>
+            <button
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 w-100 text-left cursor-pointer border-none bg-transparent ${
+                view === "mappings"
+                  ? "bg-indigo-500/15 text-indigo-400 border-l-4 border-indigo-500 rounded-l-none"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+              onClick={() => setView("mappings")}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              <span>Event Mappings</span>
+            </button>
+            <button
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 w-100 text-left cursor-pointer border-none bg-transparent ${
+                view === "triggers"
+                  ? "bg-indigo-500/15 text-indigo-400 border-l-4 border-indigo-500 rounded-l-none"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+              onClick={() => setView("triggers")}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              <span>Triggers</span>
+            </button>
+            <button
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 w-100 text-left cursor-pointer border-none bg-transparent ${
+                view === "audit"
+                  ? "bg-indigo-500/15 text-indigo-400 border-l-4 border-indigo-500 rounded-l-none"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+              onClick={() => setView("audit")}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              <span>System Logs</span>
+            </button>
+            <button
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 w-100 text-left cursor-pointer border-none bg-transparent ${
+                view === "testing"
+                  ? "bg-indigo-500/15 text-indigo-400 border-l-4 border-indigo-500 rounded-l-none"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+              onClick={() => setView("testing")}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              <span>Testing Console</span>
             </button>
           </nav>
         </div>
@@ -115,72 +194,11 @@ function App() {
                   Monitor event streams, system audit logs, and trigger statuses.
                 </p>
               </div>
-              <button
-                className="inline-flex items-center gap-2 font-semibold text-sm px-5 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer border-none disabled:opacity-50"
-                onClick={triggerPublishEvent}
-                disabled={publishing}
-                title="Publish mock TicketCreated event"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className={publishing ? "animate-spin" : ""}
-                >
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                <span>{publishing ? "Publishing..." : "Publish TicketCreated"}</span>
-              </button>
-            </div>
-
-            {/* Metrics Section */}
-            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl p-5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-indigo-500/15 text-indigo-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                </div>
-                <div>
-                  <h3 className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Seeded Event Types</h3>
-                  <p className="text-2xl font-bold text-slate-100">{eventCount}</p>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl p-5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-purple-500/15 text-purple-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><polyline points="12 6 12 12 16 14"></polyline></svg>
-                </div>
-                <div>
-                  <h3 className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Audit Logs Logged</h3>
-                  <p className="text-2xl font-bold text-slate-100">{logs.length}</p>
-                </div>
-              </div>
-
-              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl p-5 flex items-center gap-4">
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-emerald-500/15 text-emerald-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                </div>
-                <div>
-                  <h3 className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-1">Scheduler Status</h3>
-                  <p className="text-2xl font-bold text-slate-100">Running</p>
-                </div>
-              </div>
-            </section>
-
-            {/* Audit Logs Table */}
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-white">System Audit Logs</h2>
+              <div className="flex items-center gap-3">
                 <button
-                  className="inline-flex items-center gap-2 font-semibold text-xs px-4 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-all duration-200 cursor-pointer"
-                  onClick={loadLogs}
-                  title="Refresh Logs Table"
+                  className="inline-flex items-center gap-2 font-semibold text-xs px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-all cursor-pointer"
+                  onClick={loadMetrics}
+                  title="Force refresh statistics metrics"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -192,71 +210,174 @@ function App() {
                     strokeWidth="2.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className={loadingLogs ? "animate-spin" : ""}
+                    className={loadingMetrics ? "animate-spin" : ""}
                   >
                     <path d="M21.5 2v6h-6" />
                     <path d="M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
                   </svg>
-                  <span>Sync Logs</span>
+                  <span>Sync Stats</span>
+                </button>
+                <button
+                  className="inline-flex items-center gap-2 font-semibold text-sm px-5 py-2.5 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer border-none disabled:opacity-50"
+                  onClick={triggerPublishEvent}
+                  disabled={publishing}
+                  title="Publish mock TicketCreated event"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className={publishing ? "animate-spin" : ""}
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>{publishing ? "Publishing..." : "Publish TicketCreated"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Metrics Section */}
+            <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl p-5 flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-indigo-500/15 text-indigo-400 shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 6v6l4 2"></path></svg>
+                </div>
+                <div>
+                  <h3 className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">Events</h3>
+                  <p className="text-xl font-bold text-slate-100">{eventCount}</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl p-5 flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-500/15 text-purple-400 shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+                </div>
+                <div>
+                  <h3 className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">Actions</h3>
+                  <p className="text-xl font-bold text-slate-100">{actionCount}</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl p-5 flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-amber-500/15 text-amber-400 shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                </div>
+                <div>
+                  <h3 className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">Mappings</h3>
+                  <p className="text-xl font-bold text-slate-100">{mappingCount}</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl p-5 flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-sky-500/15 text-sky-400 shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </div>
+                <div>
+                  <h3 className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">Triggers</h3>
+                  <p className="text-xl font-bold text-slate-100">{triggerCount}</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-900/40 backdrop-blur-md border border-white/5 rounded-xl p-5 flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-emerald-500/15 text-emerald-400 shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                </div>
+                <div>
+                  <h3 className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">Audit Logs</h3>
+                  <p className="text-xl font-bold text-slate-100">{logs.length}</p>
+                </div>
+              </div>
+            </section>
+
+            {/* Recent Audit Logs Section */}
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-white">Recent Audit Activity</h2>
+                <button
+                  className="text-indigo-400 hover:text-indigo-300 font-semibold text-xs transition-colors cursor-pointer border-none bg-transparent"
+                  onClick={() => setView("audit")}
+                >
+                  View All Logs &rarr;
                 </button>
               </div>
 
-              {loadingLogs ? (
-                <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-                  <div className="w-8 h-8 border-2 border-white/5 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
-                  <p>Loading audit trails...</p>
+              {loadingMetrics ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <div className="w-6 h-6 border-2 border-white/5 border-t-indigo-500 rounded-full animate-spin mb-3"></div>
+                  <p className="text-xs">Loading audit trails...</p>
                 </div>
               ) : logs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 px-10 text-center bg-slate-900/10 border border-dashed border-white/10 rounded-xl">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="48"
-                    height="48"
+                    width="40"
+                    height="40"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    className="text-slate-600 mb-4"
+                    className="text-slate-600 mb-3"
                   >
                     <circle cx="12" cy="12" r="10" />
                     <line x1="12" y1="8" x2="12" y2="12" />
                     <line x1="12" y1="16" x2="12.01" y2="16" />
                   </svg>
-                  <h3 className="mb-2 text-lg font-semibold text-slate-300">No audit logs logged</h3>
-                  <p className="text-sm text-slate-500 max-w-xs">Trigger an event using the "Publish TicketCreated" command above to record actions.</p>
+                  <h3 className="mb-1 text-base font-semibold text-slate-300">No activity logged</h3>
+                  <p className="text-xs text-slate-500 max-w-xs">Use the testing console menu tab to publish custom test events.</p>
                 </div>
               ) : (
                 <div className="bg-slate-900/30 backdrop-blur-lg border border-white/5 rounded-xl overflow-hidden shadow-xl shadow-black/20">
                   <table className="w-full border-collapse text-left">
                     <thead>
                       <tr className="bg-slate-950/45 border-b border-white/5">
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">ID</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Event Type</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Payload Context</th>
-                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Timestamp (Unix)</th>
+                        <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500 w-24">ID</th>
+                        <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500 w-48">Event Name</th>
+                        <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Payload Context</th>
+                        <th className="px-6 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500 w-64">Timestamp</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {logs.map((log) => (
-                        <tr key={log.id} className="hover:bg-white/5 transition-all border-b border-white/5">
-                          <td className="px-6 py-4 text-sm font-mono text-slate-400">#{log.id}</td>
-                          <td className="px-6 py-4 text-sm text-indigo-400 font-semibold">{log.event_name}</td>
-                          <td className="px-6 py-4 text-sm font-mono text-slate-400 max-w-md overflow-hidden text-ellipsis whitespace-nowrap">
-                            {log.payload}
-                          </td>
-                          <td className="px-6 py-4 text-sm text-slate-400">{log.timestamp}</td>
-                        </tr>
-                      ))}
+                      {logs.slice(0, 5).map((log) => {
+                        const formattedTime = new Date(log.timestamp * 1000).toLocaleString();
+
+                        return (
+                          <tr key={log.id} className="hover:bg-white/5 transition-all border-b border-white/5">
+                            <td className="px-6 py-3.5 text-sm font-mono text-slate-400">#{log.id}</td>
+                            <td className="px-6 py-3.5 text-sm text-indigo-400 font-semibold">{log.event_name}</td>
+                            <td className="px-6 py-3.5 text-sm font-mono text-slate-300 max-w-md overflow-hidden text-ellipsis whitespace-nowrap">
+                              {log.payload}
+                            </td>
+                            <td className="px-6 py-3.5 text-sm text-slate-400 font-mono text-xs">{formattedTime}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             </div>
           </div>
-        ) : (
+        ) : view === "events" ? (
           <EventsPage />
+        ) : view === "actions" ? (
+          <ActionsPage />
+        ) : view === "mappings" ? (
+          <EventActionMappingPage />
+        ) : view === "triggers" ? (
+          <TriggerPage />
+        ) : view === "audit" ? (
+          <AuditLogsPage />
+        ) : (
+          <EventTestingPage />
         )}
       </main>
     </div>
