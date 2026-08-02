@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Core Event Bus implementation.
 
 use std::sync::{Arc, RwLock};

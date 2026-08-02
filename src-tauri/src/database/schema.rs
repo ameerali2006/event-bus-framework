@@ -136,15 +136,8 @@ pub fn initialize_database() -> Result<()> {
 
     println!("Seeding database with default events and actions if not present...");
 
-    // 1. Seed TicketCreated event if not present
-    conn.execute(
-        "
-        INSERT INTO events (event_name, event_constraints, custom_constraint, rule_constraints, sort_order, name)
-        SELECT 'TicketCreated', '', '', '', 1, 'Ticket Created Event'
-        WHERE NOT EXISTS (SELECT 1 FROM events WHERE event_name = 'TicketCreated');
-        ",
-        [],
-    )?;
+    // Initialize centralized EventRegistry
+    crate::services::event_registry::EventRegistry::initialize_events_with_conn(&conn)?;
 
     // 2. Seed actions (CreateLog, SendMessage, SendNotification) if not present
     conn.execute(
@@ -178,7 +171,7 @@ pub fn initialize_database() -> Result<()> {
     conn.execute(
         "
         INSERT INTO event_action_containers (event_id, action_id, parameter_values, custom_constraint, sort_order)
-        SELECT e.id, a.id, '', '', 1
+        SELECT e.id, a.id, '[{\"Key\":\"LogMessage\",\"Value\":\"Ticket created with Subject: [:Subject]\"}]', '', 1
         FROM events e, actions a
         WHERE e.event_name = 'TicketCreated' AND a.action_type = 'CreateLog'
           AND NOT EXISTS (
@@ -192,7 +185,7 @@ pub fn initialize_database() -> Result<()> {
     conn.execute(
         "
         INSERT INTO event_action_containers (event_id, action_id, parameter_values, custom_constraint, sort_order)
-        SELECT e.id, a.id, '', '', 2
+        SELECT e.id, a.id, '[{\"Key\":\"Recipient\",\"Value\":\"SupportTeam\"},{\"Key\":\"MessageText\",\"Value\":\"New ticket opened: [:Subject]\"}]', '', 2
         FROM events e, actions a
         WHERE e.event_name = 'TicketCreated' AND a.action_type = 'SendMessage'
           AND NOT EXISTS (
@@ -206,7 +199,7 @@ pub fn initialize_database() -> Result<()> {
     conn.execute(
         "
         INSERT INTO event_action_containers (event_id, action_id, parameter_values, custom_constraint, sort_order)
-        SELECT e.id, a.id, '', '', 3
+        SELECT e.id, a.id, '[{\"Key\":\"NotificationTitle\",\"Value\":\"Ticket Opened\"},{\"Key\":\"NotificationBody\",\"Value\":\"Ticket [:Subject] has been created.\"}]', '', 3
         FROM events e, actions a
         WHERE e.event_name = 'TicketCreated' AND a.action_type = 'SendNotification'
           AND NOT EXISTS (
@@ -217,15 +210,40 @@ pub fn initialize_database() -> Result<()> {
         [],
     )?;
 
-    // Seed TriggerExecuted event if not present
+    // Update existing mappings to have default parameters if they were seeded as empty
     conn.execute(
         "
-        INSERT INTO events (event_name, event_constraints, custom_constraint, rule_constraints, sort_order, name)
-        SELECT 'TriggerExecuted', '', '', '', 2, 'Trigger Executed Event'
-        WHERE NOT EXISTS (SELECT 1 FROM events WHERE event_name = 'TriggerExecuted');
+        UPDATE event_action_containers
+        SET parameter_values = '[{\"Key\":\"LogMessage\",\"Value\":\"Ticket created with Subject: [:Subject]\"}]'
+        WHERE (parameter_values = '' OR parameter_values IS NULL)
+          AND event_id = (SELECT id FROM events WHERE event_name = 'TicketCreated')
+          AND action_id = (SELECT id FROM actions WHERE action_type = 'CreateLog');
         ",
         [],
     )?;
+
+    conn.execute(
+        "
+        UPDATE event_action_containers
+        SET parameter_values = '[{\"Key\":\"Recipient\",\"Value\":\"SupportTeam\"},{\"Key\":\"MessageText\",\"Value\":\"New ticket opened: [:Subject]\"}]'
+        WHERE (parameter_values = '' OR parameter_values IS NULL)
+          AND event_id = (SELECT id FROM events WHERE event_name = 'TicketCreated')
+          AND action_id = (SELECT id FROM actions WHERE action_type = 'SendMessage');
+        ",
+        [],
+    )?;
+
+    conn.execute(
+        "
+        UPDATE event_action_containers
+        SET parameter_values = '[{\"Key\":\"NotificationTitle\",\"Value\":\"Ticket Opened\"},{\"Key\":\"NotificationBody\",\"Value\":\"Ticket [:Subject] has been created.\"}]'
+        WHERE (parameter_values = '' OR parameter_values IS NULL)
+          AND event_id = (SELECT id FROM events WHERE event_name = 'TicketCreated')
+          AND action_id = (SELECT id FROM actions WHERE action_type = 'SendNotification');
+        ",
+        [],
+    )?;
+
 
     // Seed HelloTrigger trigger if not present
     conn.execute(

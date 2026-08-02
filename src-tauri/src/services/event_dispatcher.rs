@@ -21,6 +21,10 @@ impl EventDispatcher {
         event_name: &str,
         payload: &HashMap<String, String>,
     ) -> Result<(EventDefinition, Vec<(ActionDefinition, HashMap<String, String>, Option<String>)>), String> {
+        // 0. Automatically record an audit log entry for this event dispatch execution
+        let event_obj = crate::bus::event::Event::new(event_name, payload.clone());
+        let _ = crate::audit::audit_service::AuditService::save(&event_obj);
+
         // 1. Retrieve the EventDefinition by event name
         let event = EventRepository::get_event_by_name(event_name)
             .map_err(|e| format!("Database query error fetching event definition: {}", e))?

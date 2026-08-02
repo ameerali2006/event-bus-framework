@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Publisher responsible for publishing events to the Event Bus.
 
 use super::event::Event;

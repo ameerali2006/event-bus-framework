@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Subscriber responsible for sending messages.
 
 use crate::bus::event::Event;

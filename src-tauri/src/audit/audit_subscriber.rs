@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Subscriber responsible for auditing every event.
 
 use crate::audit::audit_service::AuditService;

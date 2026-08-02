@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Service responsible for managing the Event Bus.
 
 use std::collections::HashMap;

@@ -12,16 +12,27 @@ use audit::audit_service::AuditService;
 use models::audit_log::AuditLog;
 
 #[tauri::command]
-fn publish_event(
-    service: tauri::State<EventBusService>,
-) -> String {
-    service.publish_ticket_created();
-    "Event published successfully!".to_string()
+fn publish_event() -> String {
+    let mut payload = std::collections::HashMap::new();
+    payload.insert("ticket_id".to_string(), "TKT-1001".to_string());
+    payload.insert("created_by".to_string(), "Ameer".to_string());
+    payload.insert("Subject".to_string(), "Dynamic Event Dispatch Verification".to_string());
+
+    match services::event_dispatcher::EventDispatcher::dispatch_event("TicketCreated", &payload) {
+        Ok(_) => "Event published successfully!".to_string(),
+        Err(e) => format!("Event dispatch failed: {}", e),
+    }
 }
 
 #[tauri::command]
 fn get_audit_logs() -> Result<Vec<AuditLog>, String> {
     AuditService::get_all_logs()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_events() -> Result<Vec<models::event_definition::EventDefinition>, String> {
+    repositories::event_repository::EventRepository::get_all_events()
         .map_err(|e| e.to_string())
 }
 
@@ -55,7 +66,8 @@ pub fn run() {
         .invoke_handler(
             tauri::generate_handler![
                 publish_event,
-                get_audit_logs
+                get_audit_logs,
+                get_events
             ]
         )
         .run(tauri::generate_context!())

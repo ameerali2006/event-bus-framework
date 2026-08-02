@@ -29,18 +29,28 @@ impl ParameterResolver {
             .map_err(|e| format!("Failed to parse action parameters JSON structure: {}", e))?;
 
         for item in items {
-            let resolved_value = if item.value.starts_with("[:") && item.value.ends_with(']') {
-                let key_name = &item.value[2..item.value.len() - 1];
-                payload.get(key_name)
-                    .cloned()
-                    .ok_or_else(|| format!("Placeholder variable '{}' is missing from incoming event payload", key_name))?
-            } else {
-                item.value
-            };
+            let mut resolved_value = item.value.clone();
+
+            // Replace every placeholder like [:Subject] anywhere in the string
+            for (key, value) in payload {
+                let placeholder = format!("[:{}]", key);
+                resolved_value = resolved_value.replace(&placeholder, value);
+            }
+
+            // Verify that no unresolved placeholders remain
+            if let Some(start) = resolved_value.find("[:") {
+                if let Some(end) = resolved_value[start..].find(']') {
+                    let missing =
+                        &resolved_value[start + 2..start + end];
+                    return Err(format!(
+                        "Placeholder variable '{}' is missing from incoming event payload",
+                        missing
+                    ));
+                }
+            }
 
             resolved.insert(item.key, resolved_value);
         }
-
         Ok(resolved)
     }
 }

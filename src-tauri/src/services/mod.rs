@@ -4,3 +4,6 @@ pub mod constraint_evaluator;
 pub mod parameter_resolver;
 pub mod action_executor;
 pub mod trigger_service;
+pub mod event_registry;
+pub mod action_processor;
+pub mod action_registry;

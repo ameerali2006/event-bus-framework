@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Defines the contract for all event subscribers.
 
 use super::event::Event;

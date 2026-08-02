@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 //! Subscriber responsible for logging events.
 
 use crate::bus::event::Event;
