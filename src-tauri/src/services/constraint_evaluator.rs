@@ -70,7 +70,7 @@ impl ConstraintEvaluator {
     }
 
     /// Evaluates simple comparison constraint (e.g. `'TICKET TOTAL' > 0`).
-    fn evaluate_custom_constraint(cc: &str, payload: &HashMap<String, String>) -> Result<bool, String> {
+    pub fn evaluate_custom_constraint(cc: &str, payload: &HashMap<String, String>) -> Result<bool, String> {
         if cc.trim().is_empty() {
             return Ok(true);
         }

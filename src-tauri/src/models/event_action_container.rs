@@ -16,6 +16,9 @@ pub struct EventActionContainer {
     /// Action parameter values configured for this specific connection. Maps to `parameter_values` (TEXT NULL).
     pub parameter_values: Option<String>,
 
+    /// Specific JavaScript/Lua or payload validations for this event-action mapping. Maps to `custom_constraint` (TEXT NULL).
+    pub custom_constraint: Option<String>,
+
     /// Ordered sequence of action execution under the mapped event. Maps to `sort_order` (INTEGER NULL).
     pub sort_order: Option<i32>,
 }

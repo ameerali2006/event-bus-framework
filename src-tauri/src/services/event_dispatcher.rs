@@ -8,18 +8,19 @@ use crate::models::event_definition::EventDefinition;
 use crate::models::action_definition::ActionDefinition;
 use crate::services::constraint_evaluator::ConstraintEvaluator;
 use crate::services::parameter_resolver::ParameterResolver;
+use crate::services::action_executor::ActionExecutor;
 
 /// Service responsible for loading event configurations dynamically from the database.
 pub struct EventDispatcher;
 
 impl EventDispatcher {
     /// Loads the configuration for the given event name, evaluating constraints,
-    /// resolving action parameters, and returning all associated actions and parameters
-    /// in their defined execution order.
+    /// resolving action parameters, executing actions via `ActionExecutor`,
+    /// and returning all associated actions and parameters.
     pub fn dispatch_event(
         event_name: &str,
         payload: &HashMap<String, String>,
-    ) -> Result<(EventDefinition, Vec<(ActionDefinition, HashMap<String, String>)>), String> {
+    ) -> Result<(EventDefinition, Vec<(ActionDefinition, HashMap<String, String>, Option<String>)>), String> {
         // 1. Retrieve the EventDefinition by event name
         let event = EventRepository::get_event_by_name(event_name)
             .map_err(|e| format!("Database query error fetching event definition: {}", e))?
@@ -44,6 +45,21 @@ impl EventDispatcher {
                 .map_err(|e| format!("Database query error fetching action definition (id: {}): {}", mapping.action_id, e))?
                 .ok_or_else(|| format!("Action definition (id: {}) mapped to event '{}' was not found in actions catalog", mapping.action_id, event_name))?;
 
+            // Evaluate mapping-level custom constraint if present
+            if let Some(ref cc) = mapping.custom_constraint {
+                if !cc.trim().is_empty() {
+                    let passed = ConstraintEvaluator::evaluate_custom_constraint(cc, payload)?;
+                    if !passed {
+                        println!(
+                            "[DISPATCH] Skipping action '{}' because mapping-level custom constraint '{}' evaluated to false",
+                            action.name.as_deref().unwrap_or("Unnamed"),
+                            cc
+                        );
+                        continue;
+                    }
+                }
+            }
+
             // Fetch parameter string, fallback to template action defaults if container overrides are empty
             let raw_params = if let Some(ref pv) = mapping.parameter_values {
                 if !pv.trim().is_empty() {
@@ -58,10 +74,13 @@ impl EventDispatcher {
             // Resolve placeholders in parameters
             let resolved_params = ParameterResolver::resolve(raw_params, payload)?;
 
-            actions_with_params.push((action, resolved_params));
+            actions_with_params.push((action, resolved_params, mapping.custom_constraint));
         }
 
-        // Return resolved layout mappings with resolved parameters
+        // 5. Execute all loaded actions in their designated sequence
+        ActionExecutor::execute(&actions_with_params)?;
+
+        // Return resolved layout mappings with resolved parameters and constraints
         Ok((event, actions_with_params))
     }
 }

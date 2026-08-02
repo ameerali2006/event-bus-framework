@@ -44,6 +44,9 @@ pub fn run() {
             
             // Initialize database schema
             initialize_database()?;
+
+            // Start trigger scheduler background service
+            services::trigger_service::TriggerService::start_scheduler();
             
             Ok(())
         })

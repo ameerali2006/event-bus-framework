@@ -13,7 +13,7 @@ impl EventActionContainerRepository {
         let conn = get_connection()?;
         let mut stmt = conn.prepare(
             "
-            SELECT id, event_id, action_id, parameter_values, sort_order
+            SELECT id, event_id, action_id, parameter_values, custom_constraint, sort_order
             FROM event_action_containers
             WHERE event_id = ?1
             ORDER BY sort_order ASC
@@ -26,7 +26,8 @@ impl EventActionContainerRepository {
                 event_id: row.get(1)?,
                 action_id: row.get(2)?,
                 parameter_values: row.get(3)?,
-                sort_order: row.get(4)?,
+                custom_constraint: row.get(4)?,
+                sort_order: row.get(5)?,
             })
         })?;
 

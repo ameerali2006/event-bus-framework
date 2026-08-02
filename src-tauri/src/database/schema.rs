@@ -60,6 +60,7 @@ pub fn initialize_database() -> Result<()> {
             event_id INTEGER,
             action_id INTEGER,
             parameter_values TEXT,
+            custom_constraint TEXT,
             sort_order INTEGER,
             FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE,
             FOREIGN KEY(action_id) REFERENCES actions(id) ON DELETE CASCADE
@@ -67,6 +68,22 @@ pub fn initialize_database() -> Result<()> {
         ",
         [],
     )?;
+
+    // Create triggers table
+    conn.execute(
+        "
+        CREATE TABLE IF NOT EXISTS triggers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            expression TEXT NOT NULL,
+            last_trigger INTEGER,
+            name TEXT NOT NULL
+        );
+        ",
+        [],
+    )?;
+
+    // Alter table to add custom_constraint column to existing database tables if they exist
+    let _ = conn.execute("ALTER TABLE event_action_containers ADD COLUMN custom_constraint TEXT;", []);
 
     // Create indexes for performance tuning
     conn.execute(
@@ -160,8 +177,8 @@ pub fn initialize_database() -> Result<()> {
     // 3. Seed Mappings in event_action_containers if not present
     conn.execute(
         "
-        INSERT INTO event_action_containers (event_id, action_id, parameter_values, sort_order)
-        SELECT e.id, a.id, '', 1
+        INSERT INTO event_action_containers (event_id, action_id, parameter_values, custom_constraint, sort_order)
+        SELECT e.id, a.id, '', '', 1
         FROM events e, actions a
         WHERE e.event_name = 'TicketCreated' AND a.action_type = 'CreateLog'
           AND NOT EXISTS (
@@ -174,8 +191,8 @@ pub fn initialize_database() -> Result<()> {
 
     conn.execute(
         "
-        INSERT INTO event_action_containers (event_id, action_id, parameter_values, sort_order)
-        SELECT e.id, a.id, '', 2
+        INSERT INTO event_action_containers (event_id, action_id, parameter_values, custom_constraint, sort_order)
+        SELECT e.id, a.id, '', '', 2
         FROM events e, actions a
         WHERE e.event_name = 'TicketCreated' AND a.action_type = 'SendMessage'
           AND NOT EXISTS (
@@ -188,10 +205,45 @@ pub fn initialize_database() -> Result<()> {
 
     conn.execute(
         "
-        INSERT INTO event_action_containers (event_id, action_id, parameter_values, sort_order)
-        SELECT e.id, a.id, '', 3
+        INSERT INTO event_action_containers (event_id, action_id, parameter_values, custom_constraint, sort_order)
+        SELECT e.id, a.id, '', '', 3
         FROM events e, actions a
         WHERE e.event_name = 'TicketCreated' AND a.action_type = 'SendNotification'
+          AND NOT EXISTS (
+              SELECT 1 FROM event_action_containers
+              WHERE event_id = e.id AND action_id = a.id
+          );
+        ",
+        [],
+    )?;
+
+    // Seed TriggerExecuted event if not present
+    conn.execute(
+        "
+        INSERT INTO events (event_name, event_constraints, custom_constraint, rule_constraints, sort_order, name)
+        SELECT 'TriggerExecuted', '', '', '', 2, 'Trigger Executed Event'
+        WHERE NOT EXISTS (SELECT 1 FROM events WHERE event_name = 'TriggerExecuted');
+        ",
+        [],
+    )?;
+
+    // Seed HelloTrigger trigger if not present
+    conn.execute(
+        "
+        INSERT INTO triggers (expression, last_trigger, name)
+        SELECT '*/5 * * * * *', NULL, 'HelloTrigger'
+        WHERE NOT EXISTS (SELECT 1 FROM triggers WHERE name = 'HelloTrigger');
+        ",
+        [],
+    )?;
+
+    // Seed mapping for TriggerExecuted to execute CreateLog
+    conn.execute(
+        "
+        INSERT INTO event_action_containers (event_id, action_id, parameter_values, custom_constraint, sort_order)
+        SELECT e.id, a.id, '[{\"Key\":\"LogMessage\",\"Value\":\"Trigger HelloTrigger executed successfully!\"}]', '', 1
+        FROM events e, actions a
+        WHERE e.event_name = 'TriggerExecuted' AND a.action_type = 'CreateLog'
           AND NOT EXISTS (
               SELECT 1 FROM event_action_containers
               WHERE event_id = e.id AND action_id = a.id
