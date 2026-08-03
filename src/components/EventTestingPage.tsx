@@ -1,27 +1,84 @@
 import React, { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { eventApi, EventDefinition } from "../services/eventApi";
+import { actionApi, ActionDefinition } from "../services/actionApi";
+import { mappingApi, EventActionMapping } from "../services/mappingApi";
 
 export const EventTestingPage: React.FC = () => {
   const [events, setEvents] = useState<EventDefinition[]>([]);
+  const [actions, setActions] = useState<ActionDefinition[]>([]);
   const [selectedEventName, setSelectedEventName] = useState<string>("");
-  const [payloadJson, setPayloadJson] = useState<string>('{\n  "Subject": "Hello from Antigravity Tester",\n  "ticket_id": "TKT-1002",\n  "created_by": "Ameer"\n}');
+  const [payloadJson, setPayloadJson] = useState<string>("{}");
+  const [requiredFields, setRequiredFields] = useState<string[]>([]);
   
   const [loadingEvents, setLoadingEvents] = useState<boolean>(true);
   const [publishing, setPublishing] = useState<boolean>(false);
   const [response, setResponse] = useState<{ message: string; type: "success" | "error" } | null>(null);
 
+  const extractRequiredFields = (
+    mappings: EventActionMapping[],
+    allActions: ActionDefinition[]
+  ): string[] => {
+    const fields = new Set<string>();
+    const regex = /\[:([^\]]+)\]/g;
+
+    for (const mapping of mappings) {
+      const action = allActions.find((a) => a.id === mapping.action_id);
+      const rawParams = mapping.parameter_values?.trim()
+        ? mapping.parameter_values
+        : action?.parameters?.trim()
+        ? action.parameters
+        : "";
+
+      if (rawParams) {
+        let match;
+        regex.lastIndex = 0;
+        while ((match = regex.exec(rawParams)) !== null) {
+          fields.add(match[1].trim());
+        }
+      }
+    }
+    return Array.from(fields).sort();
+  };
+
+  const updateRequiredFieldsForEvent = async (
+    eventId: number,
+    currentActions: ActionDefinition[]
+  ) => {
+    try {
+      const mappingsData = await mappingApi.getMappings(eventId);
+      const fields = extractRequiredFields(mappingsData, currentActions);
+      setRequiredFields(fields);
+
+      // Automatically generate a sample payload JSON
+      const sampleObj: Record<string, string> = {};
+      for (const field of fields) {
+        sampleObj[field] = "";
+      }
+      setPayloadJson(JSON.stringify(sampleObj, null, 2));
+    } catch (err) {
+      console.error("Failed to update required fields for event:", err);
+    }
+  };
+
   const loadEvents = async () => {
     try {
       setLoadingEvents(true);
-      const data = await eventApi.getEvents();
-      const sorted = [...data].sort((a, b) => a.event_name.localeCompare(b.event_name));
-      setEvents(sorted);
-      if (sorted.length > 0) {
-        setSelectedEventName(sorted[0].event_name);
+      const [eventsData, actionsData] = await Promise.all([
+        eventApi.getEvents(),
+        actionApi.getActions(),
+      ]);
+      const sortedEvents = [...eventsData].sort((a, b) => a.event_name.localeCompare(b.event_name));
+      setEvents(sortedEvents);
+      setActions(actionsData);
+
+      if (sortedEvents.length > 0) {
+        const firstEvent = sortedEvents[0];
+        setSelectedEventName(firstEvent.event_name);
+        await updateRequiredFieldsForEvent(firstEvent.id, actionsData);
       }
     } catch (err) {
-      console.error("Failed to load events:", err);
+      console.error("Failed to load events/actions catalog:", err);
     } finally {
       setLoadingEvents(false);
     }
@@ -39,11 +96,36 @@ export const EventTestingPage: React.FC = () => {
     }
 
     const trimmedJson = payloadJson.trim();
+    let parsedPayload: any = null;
     try {
       // Enforce JSON validation on the payload text
-      JSON.parse(trimmedJson);
+      parsedPayload = JSON.parse(trimmedJson);
     } catch (err: any) {
       setResponse({ message: `Invalid JSON syntax: ${err?.message || String(err)}`, type: "error" });
+      return;
+    }
+
+    // Validate payload is a JSON object
+    if (!parsedPayload || typeof parsedPayload !== "object" || Array.isArray(parsedPayload)) {
+      setResponse({ message: "Payload must be a valid JSON object.", type: "error" });
+      return;
+    }
+
+    // Validate that every required field has a non-empty value
+    const missingFields: string[] = [];
+    for (const field of requiredFields) {
+      const val = parsedPayload[field];
+      if (val === undefined || String(val).trim() === "") {
+        missingFields.push(field);
+      }
+    }
+
+    if (missingFields.length > 0) {
+      const missingList = missingFields.map((f) => `- ${f}`).join("\n");
+      setResponse({
+        message: `Missing required payload fields:\n${missingList}`,
+        type: "error",
+      });
       return;
     }
 
@@ -62,17 +144,14 @@ export const EventTestingPage: React.FC = () => {
     }
   };
 
-  const handleEventChange = (eventName: string) => {
+  const handleEventChange = async (eventName: string) => {
     setSelectedEventName(eventName);
-    // Custom seed presets based on typical event names
-    if (eventName === "TicketCreated") {
-      setPayloadJson('{\n  "Subject": "New Support Ticket",\n  "ticket_id": "TKT-1003",\n  "created_by": "System Operator"\n}');
-    } else if (eventName === "PaymentProcessed") {
-      setPayloadJson('{\n  "Amount": "$250.00",\n  "TransactionId": "TXN-88746",\n  "Status": "Approved"\n}');
-    } else if (eventName === "TriggerExecuted") {
-      setPayloadJson('{\n  "trigger_id": "1",\n  "trigger_name": "HelloTrigger",\n  "timestamp": "1719284759"\n}');
+    const event = events.find((evt) => evt.event_name === eventName);
+    if (event) {
+      await updateRequiredFieldsForEvent(event.id, actions);
     } else {
-      setPayloadJson('{\n  "Subject": "Sample Custom Notification",\n  "context_id": "CTX-9901"\n}');
+      setRequiredFields([]);
+      setPayloadJson("{}");
     }
   };
 
@@ -141,6 +220,46 @@ export const EventTestingPage: React.FC = () => {
               </label>
               <span className="text-[11px] text-slate-500 font-mono">UTF-8 Format</span>
             </div>
+
+            {/* Required payload fields display */}
+            <div className="flex flex-col gap-2 p-4 bg-slate-950/40 border border-white/5 rounded-xl transition-all duration-300">
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Required Payload Fields
+              </div>
+              {requiredFields.length === 0 ? (
+                <div className="text-xs text-slate-500 italic">
+                  No required payload fields for this event mapping.
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {requiredFields.map((field) => {
+                    let isPresent = false;
+                    try {
+                      const parsed = JSON.parse(payloadJson);
+                      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+                        isPresent = parsed[field] !== undefined && String(parsed[field]).trim() !== "";
+                      }
+                    } catch (e) {
+                      // ignore parse errors
+                    }
+
+                    return (
+                      <span
+                        key={field}
+                        className={`text-xs font-mono px-2.5 py-1 rounded-full border transition-all duration-200 ${
+                          isPresent
+                            ? "bg-indigo-500/10 border-indigo-500/30 text-indigo-300"
+                            : "bg-amber-500/10 border-amber-500/30 text-amber-300 animate-pulse"
+                        }`}
+                      >
+                        {field}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <textarea
               value={payloadJson}
               onChange={(e) => setPayloadJson(e.target.value)}
@@ -170,7 +289,7 @@ export const EventTestingPage: React.FC = () => {
                 <h3 className="font-bold text-sm mb-1.5">
                   {response.type === "success" ? "Event Dispatched Successfully" : "Dispatch Execution Error"}
                 </h3>
-                <p className="text-xs font-mono break-all leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5">
+                <p className="text-xs font-mono break-all leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5 whitespace-pre-wrap">
                   {response.message}
                 </p>
               </div>

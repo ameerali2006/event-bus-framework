@@ -294,15 +294,15 @@ Below are visual examples of the application layout (placeholders for compiled r
 
 #### 1. Operational Dashboard
 * Displays metrics summaries for registered assets and the recent audit trail.
-* *[Image Placeholder: Operational Dashboard Preview]*
+*![alt text](screenshots/Dashboard.png)
 
 #### 2. Event Action Mappings Layout
 * Precedence, constraints, and configuration settings interface.
-* *[Image Placeholder: Mappings Manager View]*
+*[alt text](screenshots/eventmapping.png)
 
 #### 3. Event Testing Console
 * Code editor playground with dropdown selection triggers and response logs.
-* *[Image Placeholder: Custom Event Publisher Testbed]*
+*![alt text](screenshots/Testconsole.png)
 
 ---
 
