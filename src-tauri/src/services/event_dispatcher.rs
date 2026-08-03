@@ -82,7 +82,7 @@ impl EventDispatcher {
         }
 
         // 5. Execute all loaded actions in their designated sequence
-        ActionExecutor::execute(&actions_with_params)?;
+        ActionExecutor::execute(event_name, &actions_with_params)?;
 
         // Return resolved layout mappings with resolved parameters and constraints
         Ok((event, actions_with_params))

@@ -7,3 +7,4 @@ pub mod trigger_service;
 pub mod event_registry;
 pub mod action_processor;
 pub mod action_registry;
+pub mod action_execution_log_service;

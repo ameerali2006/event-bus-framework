@@ -22,6 +22,22 @@ pub fn initialize_database() -> Result<()> {
         [],
     )?;
 
+    // Create action_execution_logs table
+    conn.execute(
+        "
+        CREATE TABLE IF NOT EXISTS action_execution_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_name TEXT NOT NULL,
+            action_name TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            message TEXT NOT NULL,
+            executed_at INTEGER NOT NULL
+        );
+        ",
+        [],
+    )?;
+
     // Create events table
     conn.execute(
         "
@@ -98,6 +114,22 @@ pub fn initialize_database() -> Result<()> {
         "
         CREATE INDEX IF NOT EXISTS idx_timestamp
         ON audit_logs(timestamp);
+        ",
+        [],
+    )?;
+
+    conn.execute(
+        "
+        CREATE INDEX IF NOT EXISTS idx_action_exec_event
+        ON action_execution_logs(event_name);
+        ",
+        [],
+    )?;
+
+    conn.execute(
+        "
+        CREATE INDEX IF NOT EXISTS idx_action_exec_time
+        ON action_execution_logs(executed_at);
         ",
         [],
     )?;

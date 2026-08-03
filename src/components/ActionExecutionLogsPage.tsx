@@ -1,15 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { actionExecutionLogApi, ActionExecutionLog } from "../services/actionExecutionLogApi";
 
-interface AuditLog {
-  id: number;
-  event_name: string;
-  payload: string;
-  timestamp: number;
-}
-
-export const AuditLogsPage: React.FC = () => {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+export const ActionExecutionLogsPage: React.FC = () => {
+  const [logs, setLogs] = useState<ActionExecutionLog[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,12 +10,11 @@ export const AuditLogsPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await invoke<AuditLog[]>("get_audit_logs");
-      // Newest first (returned directly by the database query)
+      const data = await actionExecutionLogApi.getActionExecutionLogs();
       setLogs(data);
     } catch (err: any) {
       console.error(err);
-      setError(err?.message || String(err) || "Failed to load audit trails.");
+      setError(err?.message || String(err) || "Failed to load action execution logs.");
     } finally {
       setLoading(false);
     }
@@ -37,15 +29,15 @@ export const AuditLogsPage: React.FC = () => {
       {/* Page Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1.5">System Audit Logs</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-white mb-1.5">Action Execution Logs</h1>
           <p className="text-slate-400 text-sm">
-            Inspect real-time event dispatch history and action execution payloads.
+            Inspect real-time action dispatcher execution statuses and success/failure diagnostics.
           </p>
         </div>
         <button
           className="inline-flex items-center gap-2 font-semibold text-sm px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-all cursor-pointer"
           onClick={fetchLogs}
-          title="Refresh audit logs"
+          title="Refresh action logs"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -78,7 +70,7 @@ export const AuditLogsPage: React.FC = () => {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <div className="w-8 h-8 border-2 border-white/5 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
-          <p>Loading audit trails...</p>
+          <p>Loading execution traces...</p>
         </div>
       ) : logs.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 px-10 text-center bg-slate-900/10 border border-dashed border-white/10 rounded-xl">
@@ -98,8 +90,8 @@ export const AuditLogsPage: React.FC = () => {
             <line x1="12" y1="8" x2="12" y2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          <h3 className="mb-2 text-lg font-semibold text-slate-300">No logs found</h3>
-          <p className="text-sm text-slate-500 max-w-xs">Publish events using the "Event Testing" page to generate audit log records.</p>
+          <h3 className="mb-2 text-lg font-semibold text-slate-300">No execution logs found</h3>
+          <p className="text-sm text-slate-500 max-w-xs">Fire event triggers from the console page to generate action execution history.</p>
         </div>
       ) : (
         <div className="bg-slate-900/30 backdrop-blur-lg border border-white/5 rounded-xl overflow-hidden shadow-xl shadow-black/20">
@@ -107,23 +99,39 @@ export const AuditLogsPage: React.FC = () => {
             <thead>
               <tr className="bg-slate-950/45 border-b border-white/5">
                 <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-24">ID</th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-48">Event Name</th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Payload Context</th>
-                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-64">Timestamp</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-48">Execution Time</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-44">Event Name</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-44">Action Name</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-40">Action Type</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500 w-32">Status</th>
+                <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-500">Log Message</th>
               </tr>
             </thead>
             <tbody>
               {logs.map((log) => {
-                const formattedTime = new Date(log.timestamp * 1000).toLocaleString();
+                const formattedTime = new Date(log.executed_at * 1000).toLocaleString();
 
                 return (
                   <tr key={log.id} className="hover:bg-white/5 transition-all border-b border-white/5">
                     <td className="px-6 py-4 text-sm font-mono text-slate-400">#{log.id}</td>
-                    <td className="px-6 py-4 text-sm text-indigo-400 font-semibold">{log.event_name}</td>
-                    <td className="px-6 py-4 text-sm font-mono text-slate-300 max-w-lg overflow-x-auto whitespace-pre-wrap word-break-all">
-                      {log.payload}
-                    </td>
                     <td className="px-6 py-4 text-sm text-slate-400 font-mono text-xs">{formattedTime}</td>
+                    <td className="px-6 py-4 text-sm text-indigo-400 font-semibold">{log.event_name}</td>
+                    <td className="px-6 py-4 text-sm text-slate-300 font-medium">{log.action_name}</td>
+                    <td className="px-6 py-4 text-sm font-mono text-slate-400 text-xs">{log.action_type}</td>
+                    <td className="px-6 py-4 text-sm">
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                          log.status === "Success"
+                            ? "bg-emerald-500/15 text-emerald-400"
+                            : "bg-red-500/15 text-red-400"
+                        }`}
+                      >
+                        {log.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm font-mono text-slate-300 text-xs break-all whitespace-pre-wrap max-w-sm">
+                      {log.message}
+                    </td>
                   </tr>
                 );
               })}

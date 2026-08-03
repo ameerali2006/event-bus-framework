@@ -6,6 +6,7 @@ import { EventActionMappingPage } from "./components/EventActionMappingPage";
 import { TriggerPage } from "./components/TriggerPage";
 import { AuditLogsPage } from "./components/AuditLogsPage";
 import { EventTestingPage } from "./components/EventTestingPage";
+import { ActionExecutionLogsPage } from "./components/ActionExecutionLogsPage";
 import { eventApi } from "./services/eventApi";
 import { actionApi } from "./services/actionApi";
 import { triggerApi } from "./services/triggerApi";
@@ -19,21 +20,23 @@ interface AuditLog {
 
 function App() {
   const [view, setView] = useState<
-    "dashboard" | "events" | "actions" | "mappings" | "triggers" | "audit" | "testing"
+    "dashboard" | "events" | "actions" | "mappings" | "triggers" | "audit" | "testing" | "action_logs"
   >("dashboard");
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [eventCount, setEventCount] = useState<number>(0);
   const [actionCount, setActionCount] = useState<number>(0);
   const [mappingCount, setMappingCount] = useState<number>(0);
   const [triggerCount, setTriggerCount] = useState<number>(0);
+  const [totalLogCount, setTotalLogCount] = useState<number>(0);
   const [loadingMetrics, setLoadingMetrics] = useState<boolean>(true);
   const [publishing, setPublishing] = useState<boolean>(false);
 
   async function loadLogs() {
     try {
-      const data = await invoke<AuditLog[]>("get_audit_logs");
-      // Load recent first
-      setLogs([...data].reverse());
+      const data = await invoke<AuditLog[]>("get_recent_audit_logs", { limit: 5 });
+      setLogs(data);
+      const total = await invoke<number>("get_total_log_count");
+      setTotalLogCount(total);
     } catch (e) {
       console.error("Failed to load audit logs:", e);
     }
@@ -165,6 +168,17 @@ function App() {
             </button>
             <button
               className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 w-100 text-left cursor-pointer border-none bg-transparent ${
+                view === "action_logs"
+                  ? "bg-indigo-500/15 text-indigo-400 border-l-4 border-indigo-500 rounded-l-none"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+              onClick={() => setView("action_logs")}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+              <span>Action Traces</span>
+            </button>
+            <button
+              className={`flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 w-100 text-left cursor-pointer border-none bg-transparent ${
                 view === "testing"
                   ? "bg-indigo-500/15 text-indigo-400 border-l-4 border-indigo-500 rounded-l-none"
                   : "text-slate-400 hover:bg-white/5 hover:text-white"
@@ -291,7 +305,7 @@ function App() {
                 </div>
                 <div>
                   <h3 className="text-[10px] text-slate-500 uppercase tracking-wider font-bold mb-0.5">Audit Logs</h3>
-                  <p className="text-xl font-bold text-slate-100">{logs.length}</p>
+                  <p className="text-xl font-bold text-slate-100">{totalLogCount}</p>
                 </div>
               </div>
             </section>
@@ -376,6 +390,8 @@ function App() {
           <TriggerPage />
         ) : view === "audit" ? (
           <AuditLogsPage />
+        ) : view === "action_logs" ? (
+          <ActionExecutionLogsPage />
         ) : (
           <EventTestingPage />
         )}

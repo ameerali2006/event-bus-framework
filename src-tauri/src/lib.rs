@@ -31,6 +31,28 @@ fn get_audit_logs() -> Result<Vec<AuditLog>, String> {
 }
 
 #[tauri::command]
+fn get_recent_audit_logs(limit: i32) -> Result<Vec<AuditLog>, String> {
+    AuditService::get_recent_logs(limit)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_total_log_count() -> Result<i32, String> {
+    AuditService::get_total_log_count()
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_action_execution_logs() -> Result<Vec<models::action_execution_log::ActionExecutionLog>, String> {
+    services::action_execution_log_service::ActionExecutionLogService::get_all()
+}
+
+#[tauri::command]
+fn get_recent_action_execution_logs(limit: i32) -> Result<Vec<models::action_execution_log::ActionExecutionLog>, String> {
+    services::action_execution_log_service::ActionExecutionLogService::get_recent(limit)
+}
+
+#[tauri::command]
 fn get_events() -> Result<Vec<models::event_definition::EventDefinition>, String> {
     repositories::event_repository::EventRepository::get_all_events()
         .map_err(|e| e.to_string())
@@ -263,7 +285,11 @@ pub fn run() {
                 update_trigger,
                 delete_trigger,
                 publish_custom_event,
-                get_total_mapping_count
+                get_total_mapping_count,
+                get_recent_audit_logs,
+                get_total_log_count,
+                get_action_execution_logs,
+                get_recent_action_execution_logs
             ]
         )
         .run(tauri::generate_context!())
